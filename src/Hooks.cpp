@@ -294,7 +294,7 @@ namespace Hooks {
                     const float cy = (nz * vx - nx * vz) * invLen;
                     vx = cy * scale;
                     vy = -cx * scale;
-                    vz = (cx * ny - cy * nx) * scale;
+                    vz = 0.0f;
                     relVel = RE::hkVector4{vx, vy, vz, 0.0f};
                 }
             }
