@@ -80,9 +80,7 @@ namespace Hooks {
         auto* characterClipAnimMotionMap = AnimationMotionRevolution::CharacterClipAnimMotionMap::GetSingleton();
         RE::BSSpinLockGuard lockguard(characterClipAnimMotionMap->lock);
 
-        auto* charController = a_character->GetCharController();
-        auto* charStateOnGround = reinterpret_cast<RE::bhkCharacterStateOnGround*>(charController->context.stateManager->registeredState[RE::hkpCharacterStateType::kOnGround]);
-
+        bool unk10 = true;
         RE::hkbCharacter* hkbCharacter = AnimationMotionRevolution::GethkbCharacter(a_character);
         AnimationMotionRevolution::AnimMotionData* animMotionData = characterClipAnimMotionMap->Get(hkbCharacter, *a_clipName);
 
@@ -110,19 +108,22 @@ namespace Hooks {
                         : RE::NiPoint3{0.0f, 0.0f, 0.0f};
 
                     a_translation = (curSegTranslation * segProgress + prevSegTranslation * (1.0f - segProgress));
-                    charStateOnGround->unk10 = a_translation.z == 0.0f;
-                    return;
+                    unk10 = (a_translation.z == 0.0f);
+                    break;
                 }
             }
         }
         else if (a_this->translationSegCount > static_cast<uint32_t>(a_this->IsTranslationDataAligned())) {
-            charStateOnGround->unk10 = true;
             _ProcessTranslationData(&a_this->translationDataPtr, a_motionTime, a_translation);
-            return;
+        }
+        else {
+            a_translation = RE::NiPoint3{0.0f, 0.0f, 0.0f};
         }
 
-        charStateOnGround->unk10 = true;
-        a_translation = RE::NiPoint3{0.0f, 0.0f, 0.0f};
+        if (auto* charController = a_character->GetCharController()) {
+            auto* charStateOnGround = reinterpret_cast<RE::bhkCharacterStateOnGround*>(charController->context.stateManager->registeredState[RE::hkpCharacterStateType::kOnGround]);
+            charStateOnGround->unk10 = unk10;
+        }
     }
 
     void Hook_MotionDataContainer::ProcessRotationData(AnimationMotionRevolution::MotionDataContainer* a_this, float a_motionTime, RE::NiQuaternion& a_rotation, const RE::BSFixedString* a_clipName, RE::Character* a_character) {
