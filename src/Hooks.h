@@ -41,26 +41,11 @@ namespace Hooks {
         }
     };
 
-    struct DeactivateClipGenerator : Xbyak::CodeGenerator {
-        DeactivateClipGenerator(uintptr_t a_hookFunc, uintptr_t a_returnAddress) {
-            Xbyak::Label hookLabel;
-            Xbyak::Label retnLabel;
-
-            mov(rdx, r14);
-            call(ptr[rip + hookLabel]);
-            jmp(ptr[rip + retnLabel]);
-
-            L(hookLabel), dq(a_hookFunc);
-            L(retnLabel), dq(a_returnAddress);
-            ready();
-        }
-    };
-
     class Hook_hkbClipGenerator {
     public:
         static inline void Install() {
-            _ComputeStartTime = REL::GetTrampoline().write_jmp<5>(REL::ID(59252).address() + 0x66E, REL::GetTrampoline().allocate(ActivateClipGenerator(reinterpret_cast<uintptr_t>(ComputeStartTime), REL::ID(59252).address() + 0x673)));
-            _ResetIgnoreStartTime = REL::GetTrampoline().write_jmp<5>(REL::ID(59254).address() + 0x1A, REL::GetTrampoline().allocate(DeactivateClipGenerator(reinterpret_cast<uintptr_t>(ResetIgnoreStartTime), REL::ID(59254).address() + 0x1F)));
+            _ComputeStartTime = REL::GetTrampoline().write_jmp<5>(REL::ID(59252).address() + 0x66E, REL::GetTrampoline().allocate(ActivateClipGenerator((uintptr_t)ComputeStartTime, REL::ID(59252).address() + 0x673)));
+            _ResetIgnoreStartTime = REL::GetTrampoline().write_call<5>(REL::ID(59254).address() + 0x1A, ResetIgnoreStartTime);
         }
     private:
         static uint32_t ComputeStartTime(const RE::hkbClipGenerator* a_this, const AnimationMotionRevolution::hkbContext* a_hkbContext);
@@ -89,10 +74,13 @@ namespace Hooks {
     class Hook_MotionDataContainer {
     public:
         static inline void Install() {
-            REL::GetTrampoline().write_call<5>(REL::ID(32703).address() + 0x298, REL::GetTrampoline().allocate(ProcessMotionData(reinterpret_cast<uintptr_t>(ProcessTranslationData))));
-            REL::GetTrampoline().write_call<5>(REL::ID(32703).address() + 0x2AA, REL::GetTrampoline().allocate(ProcessMotionData(reinterpret_cast<uintptr_t>(ProcessTranslationData))));
-            REL::GetTrampoline().write_call<5>(REL::ID(32703).address() + 0x35C, REL::GetTrampoline().allocate(ProcessMotionData(reinterpret_cast<uintptr_t>(ProcessRotationData))));
-            REL::GetTrampoline().write_call<5>(REL::ID(32703).address() + 0x36D, REL::GetTrampoline().allocate(ProcessMotionData(reinterpret_cast<uintptr_t>(ProcessRotationData))));
+            auto* translationThunk = REL::GetTrampoline().allocate(ProcessMotionData((uintptr_t)(ProcessTranslationData)));
+            REL::GetTrampoline().write_call<5>(REL::ID(32703).address() + 0x298, translationThunk);
+            REL::GetTrampoline().write_call<5>(REL::ID(32703).address() + 0x2AA, translationThunk);
+
+            auto* rotationThunk = REL::GetTrampoline().allocate(ProcessMotionData((uintptr_t)(ProcessRotationData)));
+            REL::GetTrampoline().write_call<5>(REL::ID(32703).address() + 0x35C, rotationThunk);
+            REL::GetTrampoline().write_call<5>(REL::ID(32703).address() + 0x36D, rotationThunk);
         }
     private:
         static void ProcessTranslationData(AnimationMotionRevolution::MotionDataContainer* a_this, float a_motionTime, RE::NiPoint3& a_translation, const RE::BSFixedString* a_clipName, RE::Character* a_character);

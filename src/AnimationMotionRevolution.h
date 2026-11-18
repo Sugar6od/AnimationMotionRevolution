@@ -18,11 +18,6 @@ namespace AnimationMotionRevolution {
     using Translation = Motion<RE::NiPoint3>;
     using Rotation = Motion<RE::NiQuaternion>;
 
-    struct hkaAnimationBinding : public RE::hkReferencedObject {
-        RE::hkStringPtr originalSkeletonName;      // 10
-        RE::hkRefPtr<RE::hkaAnimation> animation;  // 18
-    };
-
     struct hkbContext {
         RE::hkbCharacter* character;               // 00
     };
@@ -77,19 +72,8 @@ namespace AnimationMotionRevolution {
         }
 
         void SortListsByTime() {
-            if (!translationList.empty()) {
-                std::sort(translationList.begin(), translationList.end(),
-                    [](const Translation& a_lhs, const Translation& a_rhs) -> bool {
-                        return a_lhs.time < a_rhs.time;
-                    });
-            }
-
-            if (!rotationList.empty()) {
-                std::sort(rotationList.begin(), rotationList.end(),
-                    [](const Rotation& a_lhs, const Rotation& a_rhs) -> bool {
-                        return a_lhs.time < a_rhs.time;
-                    });
-            }
+            std::ranges::sort(translationList, {}, &Translation::time);
+            std::ranges::sort(rotationList, {}, &Rotation::time);
         }
 
         const RE::hkaAnimation* animation = nullptr;

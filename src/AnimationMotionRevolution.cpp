@@ -8,7 +8,7 @@ namespace AnimationMotionRevolution {
         constexpr std::string_view animmotionPrefix = "animmotion ";
         constexpr std::string_view animrotationPrefix = "animrotation ";
 
-        std::string_view text{ a_annotation.text.c_str() };
+        std::string_view text{a_annotation.text.c_str()};
 
         if (text.starts_with(animmotionPrefix)) {
             std::string_view start = text.substr(animmotionPrefix.size());
@@ -25,7 +25,7 @@ namespace AnimationMotionRevolution {
             end = start.substr(start.size());
             std::from_chars(start.data(), end.data(), translation.z);
 
-            return Translation{ a_annotation.time, translation };
+            return Translation{a_annotation.time, translation};
         }
         else if (text.starts_with(animrotationPrefix)) {
             std::string_view start = text.substr(animrotationPrefix.size());
@@ -34,26 +34,17 @@ namespace AnimationMotionRevolution {
             float yawDegrees = 0.0f;
             std::from_chars(start.data(), end.data(), yawDegrees);
 
-            float roll = 0.0f;
-            float pitch = 0.0f;
-            float yaw = yawDegrees * std::numbers::pi_v<float> / 180.0f;
+            const float halfYaw = yawDegrees * (std::numbers::pi_v<float> / 360.0f);
+            RE::NiQuaternion rotation{std::cos(halfYaw), 0.0f, 0.0f, std::sin(halfYaw)};
 
-            RE::NiQuaternion rotation{
-                std::cos(roll / 2.0f) * std::cos(pitch / 2.0f) * std::cos(yaw / 2.0f) + std::sin(roll / 2.0f) * std::sin(pitch / 2.0f) * std::sin(yaw / 2.0f),
-                std::sin(roll / 2.0f) * std::cos(pitch / 2.0f) * std::cos(yaw / 2.0f) - std::cos(roll / 2.0f) * std::sin(pitch / 2.0f) * std::sin(yaw / 2.0f),
-                std::cos(roll / 2.0f) * std::sin(pitch / 2.0f) * std::cos(yaw / 2.0f) + std::sin(roll / 2.0f) * std::cos(pitch / 2.0f) * std::sin(yaw / 2.0f),
-                std::cos(roll / 2.0f) * std::cos(pitch / 2.0f) * std::sin(yaw / 2.0f) - std::sin(roll / 2.0f) * std::sin(pitch / 2.0f) * std::cos(yaw / 2.0f)
-            };
-
-            return Rotation{ a_annotation.time, rotation };
+            return Rotation{a_annotation.time, rotation};
         }
 
         return {};
     }
 
     const RE::hkaAnimation* GetBoundAnimation(const RE::hkbClipGenerator* a_this) noexcept {
-        const auto* binding = *reinterpret_cast<const hkaAnimationBinding* const*>(reinterpret_cast<uintptr_t>(a_this) + 0xA0);
-        return binding ? binding->animation.get() : nullptr;
+        return a_this->binding ? a_this->binding->animation.get() : nullptr;
     }
 
     RE::hkbCharacter* GethkbCharacter(RE::Character* a_character) noexcept {

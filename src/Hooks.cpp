@@ -121,7 +121,7 @@ namespace Hooks {
         }
 
         if (auto* charController = a_character->GetCharController()) {
-            auto* charStateOnGround = reinterpret_cast<RE::bhkCharacterStateOnGround*>(charController->context.stateManager->registeredState[RE::hkpCharacterStateType::kOnGround]);
+            auto* charStateOnGround = static_cast<RE::bhkCharacterStateOnGround*>(charController->context.stateManager->registeredState[RE::hkpCharacterStateType::kOnGround]);
             charStateOnGround->unk10 = unk10;
         }
     }
@@ -170,7 +170,7 @@ namespace Hooks {
     }
 
     RE::hkpCharacterStateType Hook_bhkCharacterController::GetCharacterState(RE::hkpCharacterContext* a_this) {
-        auto* charStateOnGround = reinterpret_cast<RE::bhkCharacterStateOnGround*>(a_this->stateManager->registeredState[RE::hkpCharacterStateType::kOnGround]);
+        auto* charStateOnGround = static_cast<RE::bhkCharacterStateOnGround*>(a_this->stateManager->registeredState[RE::hkpCharacterStateType::kOnGround]);
         return charStateOnGround->unk10 ? a_this->currentState : RE::hkpCharacterStateType::kSwimming;
     }
 
@@ -178,7 +178,7 @@ namespace Hooks {
         RE::bhkWorld* world = a_characterController->GetWorldImpl();
         RE::hkVector4 gravity = *_GetGravity(world);
 
-        auto& unk31E = *reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(a_characterController) + 0x31E);
+        auto& unk31E = *REX::ADJUST_POINTER<uint8_t>(a_characterController, 0x31E);
 
         if (a_this->unk10 != 0 &&
             a_characterController->flags.none(RE::CHARACTER_FLAGS::kSupport) &&
@@ -230,17 +230,14 @@ namespace Hooks {
         if (unk31E != 0) {
             RE::hkVector4 curPos{};
             a_characterController->GetPosition(curPos, true);
-            const float dx = curPos.quad.m128_f32[0] - a_characterController->initialVelocity.quad.m128_f32[0];
-            const float dy = curPos.quad.m128_f32[1] - a_characterController->initialVelocity.quad.m128_f32[1];
-            const float dz = curPos.quad.m128_f32[2] - a_characterController->initialVelocity.quad.m128_f32[2];
-            if (std::sqrt(dx * dx + dy * dy + dz * dz) > 0.9144f ||
+            if ((curPos - a_characterController->initialVelocity).SqrLength3() > 0.9144f * 0.9144f ||
                 a_characterController->wantState != RE::hkpCharacterStateType::kTotal) {
                 unk31E = 0;
             }
         }
 
         const float prevOutVelZ = a_characterController->outVelocity.quad.m128_f32[2];
-        const bool keepVerticalVel = (a_this->unk10 == 0) || ((a_characterController->flags.underlying() >> 11) & 1) != 0;
+        const bool keepVerticalVel = (a_this->unk10 == 0) || a_characterController->flags.any(RE::CHARACTER_FLAGS::kChaseBip);
 
         RE::hkVector4 desiredVelocity = a_characterController->velocityMod;
         desiredVelocity.quad.m128_f32[0] = a_characterController->velocityMod.quad.m128_f32[1];
@@ -286,18 +283,11 @@ namespace Hooks {
             const float nz = a_characterController->supportNorm.quad.m128_f32[2];
 
             if (std::abs(nz) > std::numeric_limits<float>::epsilon()) {
-                const float lenSq = vx * vx + vy * vy + vz * vz;
-                const float len = std::sqrt(lenSq);
-                if (len > 0.0f) {
-                    const float invLen = 1.0f / len;
-                    const float scale = len / nz;
-                    const float cx = (ny * vz - nz * vy) * invLen;
-                    const float cy = (nz * vx - nx * vz) * invLen;
-                    vx = cy * scale;
-                    vy = -cx * scale;
-                    vz = 0.0f;
-                    relVel = RE::hkVector4{vx, vy, vz, 0.0f};
-                }
+                const float invNz = 1.0f / nz;
+                vx = (nz * vx - nx * vz) * invNz;
+                vy = (nz * vy - ny * vz) * invNz;
+                vz = 0.0f;
+                relVel = RE::hkVector4{vx, vy, vz, 0.0f};
             }
         }
 
