@@ -6,13 +6,11 @@
 
 namespace Hooks {
     uint32_t Hook_hkbClipGenerator::ComputeStartTime(const RE::hkbClipGenerator* a_this, const AnimationMotionRevolution::hkbContext* a_hkbContext) {
-        auto* characterClipAnimMotionMap = AnimationMotionRevolution::CharacterClipAnimMotionMap::GetSingleton();
-        RE::BSSpinLockGuard lockguard(characterClipAnimMotionMap->lock);
+        if (const RE::hkaAnimation* boundAnimation = AnimationMotionRevolution::GetBoundAnimation(a_this)) {
+            if (const RE::hkbCharacter* hkbCharacter = a_hkbContext ? a_hkbContext->character : nullptr) {
+                auto* characterClipAnimMotionMap = AnimationMotionRevolution::CharacterClipAnimMotionMap::GetSingleton();
+                RE::BSWriteLockGuard lockguard(characterClipAnimMotionMap->lock);
 
-        const RE::hkaAnimation* boundAnimation = AnimationMotionRevolution::GetBoundAnimation(a_this);
-        if (boundAnimation) {
-            const RE::hkbCharacter* hkbCharacter = a_hkbContext ? a_hkbContext->character : nullptr;
-            if (hkbCharacter) {
                 AnimationMotionRevolution::AnimMotionData* animMotionData = characterClipAnimMotionMap->Get(hkbCharacter, a_this->name);
 
                 if (animMotionData && animMotionData->animation == boundAnimation) {
@@ -56,13 +54,11 @@ namespace Hooks {
     }
 
     void Hook_hkbClipGenerator::ResetIgnoreStartTime(const RE::hkbClipGenerator* a_this, const AnimationMotionRevolution::hkbContext* a_hkbContext) {
-        auto* characterClipAnimMotionMap = AnimationMotionRevolution::CharacterClipAnimMotionMap::GetSingleton();
-        RE::BSSpinLockGuard lockguard(characterClipAnimMotionMap->lock);
+        if (const RE::hkaAnimation* boundAnimation = AnimationMotionRevolution::GetBoundAnimation(a_this)) {
+            if (const RE::hkbCharacter* hkbCharacter = a_hkbContext ? a_hkbContext->character : nullptr) {
+                auto* characterClipAnimMotionMap = AnimationMotionRevolution::CharacterClipAnimMotionMap::GetSingleton();
+                RE::BSWriteLockGuard lockguard(characterClipAnimMotionMap->lock);
 
-        const RE::hkaAnimation* boundAnimation = AnimationMotionRevolution::GetBoundAnimation(a_this);
-        if (boundAnimation) {
-            const RE::hkbCharacter* hkbCharacter = a_hkbContext ? a_hkbContext->character : nullptr;
-            if (hkbCharacter) {
                 AnimationMotionRevolution::AnimMotionData* animMotionData = characterClipAnimMotionMap->Get(hkbCharacter, a_this->name);
 
                 if (animMotionData && animMotionData->animation == boundAnimation) {
@@ -77,47 +73,55 @@ namespace Hooks {
     }
 
     void Hook_MotionDataContainer::ProcessTranslationData(AnimationMotionRevolution::MotionDataContainer* a_this, float a_motionTime, RE::NiPoint3& a_translation, const RE::BSFixedString* a_clipName, RE::Character* a_character) {
-        auto* characterClipAnimMotionMap = AnimationMotionRevolution::CharacterClipAnimMotionMap::GetSingleton();
-        RE::BSSpinLockGuard lockguard(characterClipAnimMotionMap->lock);
-
         bool unk10 = true;
+        bool hasCustomMotion = false;
         RE::hkbCharacter* hkbCharacter = AnimationMotionRevolution::GethkbCharacter(a_character);
-        AnimationMotionRevolution::AnimMotionData* animMotionData = characterClipAnimMotionMap->Get(hkbCharacter, *a_clipName);
 
-        if (animMotionData && !animMotionData->translationList.empty()) {
-            const auto& customTranslationList = animMotionData->translationList;
-            float endMotionTime = customTranslationList.back().time;
-            float curMotionTime = std::clamp(a_motionTime, 0.0f, endMotionTime);
-            auto segCount = static_cast<uint32_t>(customTranslationList.size());
+        {
+            auto* characterClipAnimMotionMap = AnimationMotionRevolution::CharacterClipAnimMotionMap::GetSingleton();
+            RE::BSReadLockGuard lockguard(characterClipAnimMotionMap->lock);
 
-            for (uint32_t segIndex = 1; segIndex <= segCount; segIndex++) {
-                float curSegMotionTime = customTranslationList[segIndex - 1].time;
-                if (curMotionTime <= curSegMotionTime) {
-                    uint32_t prevSegIndex = segIndex - 1;
-                    float segProgress = 1.0f;
-                    float prevSegMotionTime = prevSegIndex ? customTranslationList[prevSegIndex - 1].time : 0.0f;
+            AnimationMotionRevolution::AnimMotionData* animMotionData = characterClipAnimMotionMap->Get(hkbCharacter, *a_clipName);
 
-                    float curSegMotionDuration = curSegMotionTime - prevSegMotionTime;
-                    if (curSegMotionDuration > std::numeric_limits<float>::epsilon()) {
-                        segProgress = (curMotionTime - prevSegMotionTime) / curSegMotionDuration;
+            if (animMotionData && !animMotionData->translationList.empty()) {
+                hasCustomMotion = true;
+                const auto& customTranslationList = animMotionData->translationList;
+                float endMotionTime = customTranslationList.back().time;
+                float curMotionTime = std::clamp(a_motionTime, 0.0f, endMotionTime);
+                auto segCount = static_cast<uint32_t>(customTranslationList.size());
+
+                for (uint32_t segIndex = 1; segIndex <= segCount; segIndex++) {
+                    float curSegMotionTime = customTranslationList[segIndex - 1].time;
+                    if (curMotionTime <= curSegMotionTime) {
+                        uint32_t prevSegIndex = segIndex - 1;
+                        float segProgress = 1.0f;
+                        float prevSegMotionTime = prevSegIndex ? customTranslationList[prevSegIndex - 1].time : 0.0f;
+
+                        float curSegMotionDuration = curSegMotionTime - prevSegMotionTime;
+                        if (curSegMotionDuration > std::numeric_limits<float>::epsilon()) {
+                            segProgress = (curMotionTime - prevSegMotionTime) / curSegMotionDuration;
+                        }
+
+                        const RE::NiPoint3& curSegTranslation = customTranslationList[segIndex - 1].delta;
+                        const RE::NiPoint3& prevSegTranslation = prevSegIndex
+                            ? customTranslationList[prevSegIndex - 1].delta
+                            : RE::NiPoint3{0.0f, 0.0f, 0.0f};
+
+                        a_translation = (curSegTranslation * segProgress + prevSegTranslation * (1.0f - segProgress));
+                        unk10 = (a_translation.z == 0.0f);
+                        break;
                     }
-
-                    const RE::NiPoint3& curSegTranslation = customTranslationList[segIndex - 1].delta;
-                    const RE::NiPoint3& prevSegTranslation = prevSegIndex
-                        ? customTranslationList[prevSegIndex - 1].delta
-                        : RE::NiPoint3{0.0f, 0.0f, 0.0f};
-
-                    a_translation = (curSegTranslation * segProgress + prevSegTranslation * (1.0f - segProgress));
-                    unk10 = (a_translation.z == 0.0f);
-                    break;
                 }
             }
         }
-        else if (a_this->translationSegCount > static_cast<uint32_t>(a_this->IsTranslationDataAligned())) {
-            _ProcessTranslationData(&a_this->translationDataPtr, a_motionTime, a_translation);
-        }
-        else {
-            a_translation = RE::NiPoint3{0.0f, 0.0f, 0.0f};
+
+        if (!hasCustomMotion) {
+            if (a_this->translationSegCount > static_cast<uint32_t>(a_this->IsTranslationDataAligned())) {
+                _ProcessTranslationData(&a_this->translationDataPtr, a_motionTime, a_translation);
+            }
+            else {
+                a_translation = RE::NiPoint3{0.0f, 0.0f, 0.0f};
+            }
         }
 
         if (auto* charController = a_character->GetCharController()) {
@@ -127,41 +131,45 @@ namespace Hooks {
     }
 
     void Hook_MotionDataContainer::ProcessRotationData(AnimationMotionRevolution::MotionDataContainer* a_this, float a_motionTime, RE::NiQuaternion& a_rotation, const RE::BSFixedString* a_clipName, RE::Character* a_character) {
-        auto* characterClipAnimMotionMap = AnimationMotionRevolution::CharacterClipAnimMotionMap::GetSingleton();
-        RE::BSSpinLockGuard lockguard(characterClipAnimMotionMap->lock);
-
         RE::hkbCharacter* hkbCharacter = AnimationMotionRevolution::GethkbCharacter(a_character);
-        AnimationMotionRevolution::AnimMotionData* animMotionData = characterClipAnimMotionMap->Get(hkbCharacter, *a_clipName);
 
-        if (animMotionData && !animMotionData->rotationList.empty()) {
-            const auto& customRotationList = animMotionData->rotationList;
-            float endMotionTime = customRotationList.back().time;
-            float curMotionTime = std::clamp(a_motionTime, 0.0f, endMotionTime);
-            auto segCount = static_cast<uint32_t>(customRotationList.size());
+        {
+            auto* characterClipAnimMotionMap = AnimationMotionRevolution::CharacterClipAnimMotionMap::GetSingleton();
+            RE::BSReadLockGuard lockguard(characterClipAnimMotionMap->lock);
 
-            for (uint32_t segIndex = 1; segIndex <= segCount; segIndex++) {
-                float curSegMotionTime = customRotationList[segIndex - 1].time;
-                if (curMotionTime <= curSegMotionTime) {
-                    uint32_t prevSegIndex = segIndex - 1;
-                    float segProgress = 1.0f;
-                    float prevSegMotionTime = prevSegIndex ? customRotationList[prevSegIndex - 1].time : 0.0f;
+            AnimationMotionRevolution::AnimMotionData* animMotionData = characterClipAnimMotionMap->Get(hkbCharacter, *a_clipName);
 
-                    float curSegMotionDuration = curSegMotionTime - prevSegMotionTime;
-                    if (curSegMotionDuration > std::numeric_limits<float>::epsilon()) {
-                        segProgress = (curMotionTime - prevSegMotionTime) / curSegMotionDuration;
+            if (animMotionData && !animMotionData->rotationList.empty()) {
+                const auto& customRotationList = animMotionData->rotationList;
+                float endMotionTime = customRotationList.back().time;
+                float curMotionTime = std::clamp(a_motionTime, 0.0f, endMotionTime);
+                auto segCount = static_cast<uint32_t>(customRotationList.size());
+
+                for (uint32_t segIndex = 1; segIndex <= segCount; segIndex++) {
+                    float curSegMotionTime = customRotationList[segIndex - 1].time;
+                    if (curMotionTime <= curSegMotionTime) {
+                        uint32_t prevSegIndex = segIndex - 1;
+                        float segProgress = 1.0f;
+                        float prevSegMotionTime = prevSegIndex ? customRotationList[prevSegIndex - 1].time : 0.0f;
+
+                        float curSegMotionDuration = curSegMotionTime - prevSegMotionTime;
+                        if (curSegMotionDuration > std::numeric_limits<float>::epsilon()) {
+                            segProgress = (curMotionTime - prevSegMotionTime) / curSegMotionDuration;
+                        }
+
+                        const RE::NiQuaternion& curSegRotation = customRotationList[segIndex - 1].delta;
+                        const RE::NiQuaternion& prevSegRotation = prevSegIndex
+                            ? customRotationList[prevSegIndex - 1].delta
+                            : RE::NiQuaternion{1.0f, 0.0f, 0.0f, 0.0f};
+
+                        _InterpolateRotation(a_rotation, segProgress, prevSegRotation, curSegRotation);
+                        return;
                     }
-
-                    const RE::NiQuaternion& curSegRotation = customRotationList[segIndex - 1].delta;
-                    const RE::NiQuaternion& prevSegRotation = prevSegIndex
-                        ? customRotationList[prevSegIndex - 1].delta
-                        : RE::NiQuaternion{1.0f, 0.0f, 0.0f, 0.0f};
-
-                    _InterpolateRotation(a_rotation, segProgress, prevSegRotation, curSegRotation);
-                    return;
                 }
             }
         }
-        else if (a_this->rotationSegCount > static_cast<uint32_t>(a_this->IsRotationDataAligned())) {
+
+        if (a_this->rotationSegCount > static_cast<uint32_t>(a_this->IsRotationDataAligned())) {
             _ProcessRotationData(&a_this->rotationDataPtr, a_motionTime, a_rotation);
             return;
         }

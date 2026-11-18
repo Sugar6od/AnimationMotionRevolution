@@ -132,7 +132,7 @@ namespace AnimationMotionRevolution {
             }
         }
 
-        mutable RE::BSSpinLock lock;
+        mutable RE::BSReadWriteLock lock;
 
     private:
         std::map<const RE::hkbCharacter*, std::map<std::string, AnimMotionData, std::less<>>> data;

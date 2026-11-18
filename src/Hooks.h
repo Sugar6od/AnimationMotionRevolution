@@ -27,16 +27,13 @@ namespace Hooks {
     };
 
     struct ActivateClipGenerator : Xbyak::CodeGenerator {
-        ActivateClipGenerator(uintptr_t a_hookFunc, uintptr_t a_returnAddress) {
+        ActivateClipGenerator(uintptr_t a_hookFunc) {
             Xbyak::Label hookLabel;
-            Xbyak::Label retnLabel;
 
             mov(rdx, r15);
-            call(ptr[rip + hookLabel]);
-            jmp(ptr[rip + retnLabel]);
+            jmp(ptr[rip + hookLabel]);
 
             L(hookLabel), dq(a_hookFunc);
-            L(retnLabel), dq(a_returnAddress);
             ready();
         }
     };
@@ -44,7 +41,7 @@ namespace Hooks {
     class Hook_hkbClipGenerator {
     public:
         static inline void Install() {
-            _ComputeStartTime = REL::GetTrampoline().write_jmp<5>(REL::ID(59252).address() + 0x66E, REL::GetTrampoline().allocate(ActivateClipGenerator((uintptr_t)ComputeStartTime, REL::ID(59252).address() + 0x673)));
+            _ComputeStartTime = REL::GetTrampoline().write_call<5>(REL::ID(59252).address() + 0x66E, REL::GetTrampoline().allocate(ActivateClipGenerator((uintptr_t)ComputeStartTime)));
             _ResetIgnoreStartTime = REL::GetTrampoline().write_call<5>(REL::ID(59254).address() + 0x1A, ResetIgnoreStartTime);
         }
     private:
@@ -74,11 +71,11 @@ namespace Hooks {
     class Hook_MotionDataContainer {
     public:
         static inline void Install() {
-            auto* translationThunk = REL::GetTrampoline().allocate(ProcessMotionData((uintptr_t)(ProcessTranslationData)));
+            auto* translationThunk = REL::GetTrampoline().allocate(ProcessMotionData((uintptr_t)ProcessTranslationData));
             REL::GetTrampoline().write_call<5>(REL::ID(32703).address() + 0x298, translationThunk);
             REL::GetTrampoline().write_call<5>(REL::ID(32703).address() + 0x2AA, translationThunk);
 
-            auto* rotationThunk = REL::GetTrampoline().allocate(ProcessMotionData((uintptr_t)(ProcessRotationData)));
+            auto* rotationThunk = REL::GetTrampoline().allocate(ProcessMotionData((uintptr_t)ProcessRotationData));
             REL::GetTrampoline().write_call<5>(REL::ID(32703).address() + 0x35C, rotationThunk);
             REL::GetTrampoline().write_call<5>(REL::ID(32703).address() + 0x36D, rotationThunk);
         }
