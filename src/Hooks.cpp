@@ -213,7 +213,7 @@ namespace Hooks {
             world->PickObject(pickData);
 
             if (pickData.rayOutput.rootCollidable) {
-                gravity = gravity * 0.2f;
+                gravity = gravity * 4.0f;
                 if (pickData.rayOutput.normal.quad.m128_f32[2] < std::bit_cast<float>(a_characterController->maxSlope)) {
                     a_characterController->flags.set(RE::CHARACTER_FLAGS::kAllowJumpNoContact); // 0x10
                 }
@@ -238,7 +238,7 @@ namespace Hooks {
         if (unk31E != 0) {
             RE::hkVector4 curPos{};
             a_characterController->GetPosition(curPos, true);
-            if ((curPos - a_characterController->initialVelocity).SqrLength3() > 0.9144f * 0.9144f ||
+            if ((curPos - a_characterController->pushDelta).SqrLength3() > 0.9144f * 0.9144f ||
                 a_characterController->wantState != RE::hkpCharacterStateType::kTotal) {
                 unk31E = 0;
             }
@@ -252,8 +252,8 @@ namespace Hooks {
         desiredVelocity.quad.m128_f32[1] = a_characterController->velocityMod.quad.m128_f32[0];
         if (!keepVerticalVel) {
             desiredVelocity.quad.m128_f32[2] = 0.0f;
-            desiredVelocity.quad.m128_f32[3] = 0.0f;
         }
+        desiredVelocity.quad.m128_f32[3] = 0.0f;
 
         AnimationMotionRevolution::hkpMovementUtilInput movementUtil{};
         movementUtil.forward = a_characterController->forwardVec;
@@ -285,7 +285,7 @@ namespace Hooks {
         float vy = relVel.quad.m128_f32[1];
         float vz = relVel.quad.m128_f32[2];
 
-        if (!keepVerticalVel && vz > 0.001f) {
+        if (a_this->unk10 != 0 && vz > 0.001f) {
             const float nx = a_characterController->supportNorm.quad.m128_f32[0];
             const float ny = a_characterController->supportNorm.quad.m128_f32[1];
             const float nz = a_characterController->supportNorm.quad.m128_f32[2];
